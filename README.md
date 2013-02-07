@@ -9,5 +9,5 @@ Initial release 07-02-2013:
 
 - RoundReport 
 
-[![Round Report](http://imgur.com/YHwGtDB "RoundReport with GUI...")]
+[![Round Report](http://imgur.com/YHwGtDB.jpg "RoundReport with GUI...")]
 
