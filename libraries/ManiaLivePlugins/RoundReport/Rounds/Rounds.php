@@ -34,6 +34,8 @@
 
 namespace ManiaLivePlugins\RoundReport\Rounds;
 
+use ManiaLive\Data\Storage;
+
 class Rounds extends \ManiaLive\PluginHandler\Plugin {
 
 	private $rounds_count;
@@ -42,6 +44,9 @@ class Rounds extends \ManiaLive\PluginHandler\Plugin {
 	
 	private $round_pbs;
 	
+	private $mapsDone = 0;
+	private $mapsscore = 0;
+	private $mapsscore1 = 0;
 	/*
 	Used for the WINDOWS....
 	*/
@@ -69,31 +74,110 @@ class Rounds extends \ManiaLive\PluginHandler\Plugin {
      */
     function onLoad() {
         $this->enableDedicatedEvents();
-
+	
+	$this->registerChatCommand("end", "chatEnd", 0, true);
     }
 	
 	 public function onReady() {
 	 $this->reset_rounds();
 	 }
 	 
+	 
+	public function chatEnd($login) {
+	 if (!\ManiaLive\Features\Admin\AdminGroup::contains($login)) {
+            $this->connection->chatSendServerMessage('No Permission to fiddle with MapsScores!',$login);
+            return;
+        }
+		$admin = Storage::GetInstance()->getPlayerObject($login);
+		$this->mapsscore = 0; //Mapscore team Red
+		$this->mapsscore1 = 0; //Mapscore team 
+		$this->connection->chatSendServerMessage('$ff0>> $f80Admin Set Mapscores back to 0!!!!', $login);
+	}	
 	function onBeginMap($map, $warmUp, $matchContinuation) {
 	$this->reset_rounds();	
 	}
 	function onBeginRound() {
+	// rankings and scores.
+	$Page = '<manialinks>';
+	$Page .= '<manialink id="121212121212123">';
+	$Rankings = $this->connection->getCurrentRanking(300, 0);
+	$GetTeamPointsLimit = $this->connection->GetTeamPointsLimit();
+	//var_dump($GetTeamPointsLimit['CurrentValue']);
+
+	//var_dump($Rankings);
+	if ($Rankings[0]->score == $GetTeamPointsLimit['CurrentValue']){
+	$this->mapsscore++;
+	}
+	if ($Rankings[1]->score == $GetTeamPointsLimit['CurrentValue']){
+	$this->mapsscore1++;
+	}
+	$Page .= '<frame posn="0 0 0" id="FrameShow">';
+	$Page .= '<quad posn="-26 43 -5" sizen="60 15" style="UiSMSpectatorScoreBig" substyle="TableBgVert" />';
+	$Page .= '<frame>';
+	$Page .= '<quad posn="1 39 10" sizen="10 10" halign="left" style="Emblems" substyle="#1" /> ';
+	$Page .= '<label id="team1name" posn="17 37 10" sizen="40 4" halign="center" text="$o'.$Rankings[0]->nickName.'" />';
+	$Page .= '<label posn="16 33 10 " halign="right" text="'.$Rankings[0]->score.'" style="TextValueSmallSm" />';
+	$Page .= '</frame>';
+	$Page .= '<label posn="1.5 32 10 " halign="right" text="'.$this->mapsscore1.':'.$this->mapsscore.'" style="TextValueSmallSm" />';
+	$Page .= '<frame>';
+	$Page .= '<quad posn="-1 39 10" sizen="10 10" halign="right" style="Emblems" substyle="#2" />  ';
+	$Page .= '<label id="team2name" posn="-11 37 10" sizen="40 4" halign="right" text="$o'.$Rankings[1]->nickName.'" />';
+	$Page .= '<label posn="-16 33 20 " halign="right" text="'.$Rankings[1]->score.'" style="TextValueSmallSm" />';
+	$Page .= '</frame>';
+	$Page .= '</frame>';
+	$Page .= '<script><!--
+	main () {
+		declare FrameRules	<=> Page.GetFirstChild("FrameShow");
+		declare ShowRules = True;
+			
+		while(True) {
+			yield;
+			
+			if (ShowRules) {
+				FrameRules.Show();
+			} else {
+				FrameRules.Hide();
+			}
+
+			foreach (Event in PendingEvents) {
+				switch (Event.Type) {
+					case CMlEvent::Type::MouseClick :
+					{		
+						if (Event.ControlId == "FrameRules") ShowRules = !ShowRules;
+					}
+			
+					case CMlEvent::Type::KeyPress:
+					{
+						if (Event.CharPressed == "2424832") ShowRules = !ShowRules;	// F1
+					}
+				}
+			}
+		}
+	}
+--></script>';
+	$Page .= '</manialink>';
+	$Page .= '</manialinks>';
+	
+	//var_dump($Page);
 	foreach ($this->storage->players as $login => $player) { // get players
-		$xml = '<manialinks><manialink id="121212121212123"></manialink></manialinks>';
-	$this->connection->sendDisplayManialinkPage($player->login, $xml, 0, true, true);
+	$this->connection->sendDisplayManialinkPage($player->login, $Page, 0, true, true);
+}
+	foreach ($this->storage->spectators as $login => $player) { // get players
+	$this->connection->sendDisplayManialinkPage($player->login, $Page, 0, true, true);
+}
 	}
-	foreach ($this->storage->spectators as $login => $player) { // get spectators
-		$xml = '<manialinks><manialink id="121212121212123"></manialink></manialinks>';
-	$this->connection->sendDisplayManialinkPage($player->login, $xml, 0, true, true);
-	}
+	
+	function onEndMatch($rankings, $winnerTeamOrMap) {
+	//var_dump($rankings);
+	//var_dump($winnerTeamOrMap);
+	$this->report_match();
 	}
 
 	function onEndMap($rankings, $map, $wasWarmUp, $matchContinuesOnNextMap, $restartMap) {
 	if($restartMap == true){
 	$this->reset_rounds();
 	}
+	$this->reset_rounds();
 	}
 	
 	function onEndRound() {
@@ -106,9 +190,19 @@ class Rounds extends \ManiaLive\PluginHandler\Plugin {
 	$this->rounds_count = 0;
 	$this->round_times = array();
 	$this->round_pbs = array();
+	$this->mapsDone = 0;
 	}  // reset_rounds
 	
-function report_round() {
+	function report_match(){
+	$this->mapsDone == count(\ManiaLive\Data\Storage::getInstance()->maps);
+	$this->mapsDone++;
+	$message = '$0f3Maps done: [$fff '.$this->mapsDone.' $39f]';
+	$this->connection->chatSendServerMessage($message);
+	//var_dump($this->mapsDone);
+
+	}
+	
+	function report_round() {
 	// if nobody finished make a report
 	$config = Config::getInstance();
 	if (empty($this->round_times)){
@@ -145,7 +239,7 @@ function report_round() {
 		}
 	$pos = 1;
 		$message = '$O$39fR: $fff'.$this->rounds_count.'$39f ';
-
+		
 		// report all new records, first 'show_min_recs' w/ time, rest w/o
 		foreach ($this->round_scores as $tm) {
 			// check if player still online
@@ -170,6 +264,7 @@ function report_round() {
 	if ($config->window == true){
 	$this->send_window_message($message);
 	}
+			$this->rounds_count++;
 		// reset times
 		$this->round_times = array();
 	}
@@ -180,18 +275,27 @@ function report_round() {
 	// rankings and scores.
 	$Page .= '<manialink id="121212121212123">';
 	$Rankings = $this->connection->getCurrentRanking(300, 0);
+	$GetTeamPointsLimit = $this->connection->GetTeamPointsLimit();
+	//var_dump($GetTeamPointsLimit['CurrentValue']);
+
 	//var_dump($Rankings);
+	if ($Rankings[0]->score == $GetTeamPointsLimit['CurrentValue']){
+	$this->mapsscore++;
+	}
+	if ($Rankings[1]->score == $GetTeamPointsLimit['CurrentValue']){
+	$this->mapsscore1++;
+	}
 	//$Page .= '<quad posn="-50 35 0" sizen="20 10" halign="center" style="TitleLogos" substyle="Title"/>';
 	$Page .= '<quad posn="-26 43 -5" sizen="60 15" style="UiSMSpectatorScoreBig" substyle="TableBgVert" />';
 	$Page .= '<frame>';
-	$Page .= '<quad posn="0 39 10" sizen="10 10" halign="left" style="Emblems" substyle="#1" /> ';
-	$Page .= '<label id="team1name" posn="16 37 10" sizen="40 4" halign="center" text="$o'.$Rankings[0]->nickName.'" />';
+	$Page .= '<quad posn="1 39 10" sizen="10 10" halign="left" style="Emblems" substyle="#1" /> ';
+	$Page .= '<label id="team1name" posn="17 37 10" sizen="40 4" halign="center" text="$o'.$Rankings[0]->nickName.'" />';
 	$Page .= '<label posn="16 33 10 " halign="right" text="'.$Rankings[0]->score.'" style="TextValueSmallSm" />';
 	$Page .= '</frame>';
-	$Page .= '<label posn="0.5 32 10 " halign="right" text="'.$this->rounds_count.'" style="TextValueSmallSm" />';
+	$Page .= '<label posn="1.5 32 10 " halign="right" text="'.$this->mapsscore1.':'.$this->mapsscore.'" style="TextValueSmallSm" />';
 	$Page .= '<frame>';
-	$Page .= '<quad posn="0 39 10" sizen="10 10" halign="right" style="Emblems" substyle="#2" />  ';
-	$Page .= '<label id="team2name" posn="-10 37 10" sizen="40 4" halign="right" text="$o'.$Rankings[1]->nickName.'" />';
+	$Page .= '<quad posn="-1 39 10" sizen="10 10" halign="right" style="Emblems" substyle="#2" />  ';
+	$Page .= '<label id="team2name" posn="-11 37 10" sizen="40 4" halign="right" text="$o'.$Rankings[1]->nickName.'" />';
 	$Page .= '<label posn="-16 33 20 " halign="right" text="'.$Rankings[1]->score.'" style="TextValueSmallSm" />';
 	$Page .= '</frame>';
 	//foreach ($Rankings as $Ranking) {
@@ -202,7 +306,7 @@ function report_round() {
 	$Page .= '</manialink>';
 
 	// customui
-	$Page .= '<custom_ui>i<challenge_info visible="false"/><net_infos visible="false"/><scoretable visible="false"/></custom_ui>';
+	$Page .= '<custom_ui>i<challenge_info visible="false"/><net_infos visible="false"/><scoretable visible="true"/></custom_ui>';
 	
 	$Page .= '</manialinks>';
 	//var_dump($Page);
@@ -213,7 +317,7 @@ function report_round() {
 	$this->connection->sendDisplayManialinkPage($player->login, $Page, 0, true, true);
 }		
 	}
-		$this->rounds_count++;
+
 }  // report_round	
 
 
