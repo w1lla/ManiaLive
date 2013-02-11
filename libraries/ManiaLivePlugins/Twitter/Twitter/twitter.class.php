@@ -190,7 +190,7 @@ class Twitterer
 		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
 		curl_setopt($curl, CURLOPT_HTTPHEADER, array('Expect:'));
 		curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE); // no echo, just return result
-		curl_setopt($curl, CURLOPT_USERAGENT, 'Twitter for PHP');
+		curl_setopt($curl, CURLOPT_USERAGENT, 'Manialive Twitter PHP');
 		if ($method === 'POST') {
 			curl_setopt($curl, CURLOPT_POST, TRUE);
 			curl_setopt($curl, CURLOPT_POSTFIELDS, $request->to_postdata());

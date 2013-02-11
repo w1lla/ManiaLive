@@ -97,6 +97,8 @@ class Rounds extends \ManiaLive\PluginHandler\Plugin {
 	$this->reset_rounds();	
 	}
 	function onBeginRound() {
+		$gameMode = $this->connection->getGameMode();
+	if($gameMode == 3){
 	// rankings and scores.
 	$Page = '<manialinks>';
 	$Page .= '<manialink id="121212121212123">';
@@ -166,11 +168,12 @@ class Rounds extends \ManiaLive\PluginHandler\Plugin {
 	$this->connection->sendDisplayManialinkPage($player->login, $Page, 0, true, true);
 }
 	}
+}
 	
 	function onEndMatch($rankings, $winnerTeamOrMap) {
 	//var_dump($rankings);
 	//var_dump($winnerTeamOrMap);
-	$this->report_match();
+	//$this->report_match();
 	}
 
 	function onEndMap($rankings, $map, $wasWarmUp, $matchContinuesOnNextMap, $restartMap) {
@@ -193,20 +196,20 @@ class Rounds extends \ManiaLive\PluginHandler\Plugin {
 	$this->mapsDone = 0;
 	}  // reset_rounds
 	
-	function report_match(){
+	/*function report_match(){
 	$this->mapsDone == count(\ManiaLive\Data\Storage::getInstance()->maps);
 	$this->mapsDone++;
 	$message = '$0f3Maps done: [$fff '.$this->mapsDone.' $39f]';
 	$this->connection->chatSendServerMessage($message);
 	//var_dump($this->mapsDone);
-
-	}
+	}*/
 	
 	function report_round() {
 	// if nobody finished make a report
 	$config = Config::getInstance();
 	if (empty($this->round_times)){
 	$message = '$O$39fR:$fff'.$this->rounds_count.' $39f Nobody Finished!!!';
+	$this->rounds_count++;
 	if ($config->message == true){
 	$this->connection->chatSendServerMessage($message);
 	}
@@ -239,7 +242,7 @@ class Rounds extends \ManiaLive\PluginHandler\Plugin {
 		}
 	$pos = 1;
 		$message = '$O$39fR: $fff'.$this->rounds_count.'$39f ';
-		
+		$this->rounds_count++;
 		// report all new records, first 'show_min_recs' w/ time, rest w/o
 		foreach ($this->round_scores as $tm) {
 			// check if player still online
@@ -264,14 +267,70 @@ class Rounds extends \ManiaLive\PluginHandler\Plugin {
 	if ($config->window == true){
 	$this->send_window_message($message);
 	}
-			$this->rounds_count++;
 		// reset times
 		$this->round_times = array();
 	}
 	$gameMode = $this->connection->getGameMode();
-	if($gamemode = 3){
-	$Page = '<manialinks>';
+	if($gameMode == 5){
+	$Frame = '<manialinks>';
+	$Frame .= '<manialink id="121212121212124">';
+	$Rankings = $this->connection->getCurrentRanking(300, 0);
+	$Limit = $this->connection->getCupPointsLimit();
+	$Score = $Rankings[0]->score;
+	$Frame .= '<frame posn="0 0 0" id="FrameShow">';
+	$Frame .= '<quad posn="-26 43 -5" sizen="60 15" style="UiSMSpectatorScoreBig" substyle="TableBgVert" />';
+	$Frame .= '<frame>';
+		if ($Score == $Limit['CurrentValue']) {
+			$Frame .= '<label id="team1name" posn="17 37 10" sizen="40 4" halign="center" text="$o$F00$oFinalist!" />';
+		} else if ($Score > $Limit['CurrentValue']) {
+			$Frame .= '<label id="team1name" posn="17 37 10" sizen="40 4" halign="center" text="$o$FF0Winner!" />';
+		} else {
+			$Frame .= '<label id="team1name" posn="17 37 10" sizen="40 4" halign="center" text="$o'.$Score.'" />';
+		}
+	$Frame .= '<label id="team2name" posn="-11 37 10" sizen="40 4" halign="right" text="$o'.$Rankings[0]->nickName.'" />';
+	$Frame .= '</frame>';
+	$Frame .= '</frame>';
+	$Frame .= '<script><!--
+	main () {
+		declare FrameRules	<=> Page.GetFirstChild("FrameShow");
+		declare ShowRules = True;
+			
+		while(True) {
+			yield;
+			
+			if (ShowRules) {
+				FrameRules.Show();
+			} else {
+				FrameRules.Hide();
+			}
 
+			foreach (Event in PendingEvents) {
+				switch (Event.Type) {
+					case CMlEvent::Type::MouseClick :
+					{		
+						if (Event.ControlId == "FrameRules") ShowRules = !ShowRules;
+					}
+			
+					case CMlEvent::Type::KeyPress:
+					{
+						if (Event.CharPressed == "2424832") ShowRules = !ShowRules;	// F1
+					}
+				}
+			}
+		}
+	}
+--></script>';
+	$Frame .= '</manialink>';
+	$Frame .= '</manialinks>';
+	foreach ($this->storage->players as $login => $player) { // get players
+	$this->connection->sendDisplayManialinkPage($player->login, $Frame, 0, true, true);
+		}
+	foreach ($this->storage->spectators as $login => $player) { // get players
+	$this->connection->sendDisplayManialinkPage($player->login, $Frame, 0, true, true);
+		}		
+	}
+	if($gameMode == 3){
+	$Page = '<manialinks>';
 	// rankings and scores.
 	$Page .= '<manialink id="121212121212123">';
 	$Rankings = $this->connection->getCurrentRanking(300, 0);
@@ -285,6 +344,7 @@ class Rounds extends \ManiaLive\PluginHandler\Plugin {
 	if ($Rankings[1]->score == $GetTeamPointsLimit['CurrentValue']){
 	$this->mapsscore1++;
 	}
+	$Page .= '<frame posn="0 0 0" id="FrameShow">';
 	//$Page .= '<quad posn="-50 35 0" sizen="20 10" halign="center" style="TitleLogos" substyle="Title"/>';
 	$Page .= '<quad posn="-26 43 -5" sizen="60 15" style="UiSMSpectatorScoreBig" substyle="TableBgVert" />';
 	$Page .= '<frame>';
@@ -298,15 +358,38 @@ class Rounds extends \ManiaLive\PluginHandler\Plugin {
 	$Page .= '<label id="team2name" posn="-11 37 10" sizen="40 4" halign="right" text="$o'.$Rankings[1]->nickName.'" />';
 	$Page .= '<label posn="-16 33 20 " halign="right" text="'.$Rankings[1]->score.'" style="TextValueSmallSm" />';
 	$Page .= '</frame>';
-	//foreach ($Rankings as $Ranking) {
-		//if ($Ranking['Rank'] == 0)
-		//	break;	// there aren't 5 players in the top 5, so cut up earlier.
-		//$Page .= MakePlayerFrame($Ranking, $Target, $GameInfos, $posx, $posy);
-	//}
-	$Page .= '</manialink>';
+	$Page .= '</frame>';
+$Page .= '<script><!--
+	main () {
+		declare FrameRules	<=> Page.GetFirstChild("FrameShow");
+		declare ShowRules = True;
+			
+		while(True) {
+			yield;
+			
+			if (ShowRules) {
+				FrameRules.Show();
+			} else {
+				FrameRules.Hide();
+			}
 
-	// customui
-	$Page .= '<custom_ui>i<challenge_info visible="false"/><net_infos visible="false"/><scoretable visible="true"/></custom_ui>';
+			foreach (Event in PendingEvents) {
+				switch (Event.Type) {
+					case CMlEvent::Type::MouseClick :
+					{		
+						if (Event.ControlId == "FrameRules") ShowRules = !ShowRules;
+					}
+			
+					case CMlEvent::Type::KeyPress:
+					{
+						if (Event.CharPressed == "2424832") ShowRules = !ShowRules;	// F1
+					}
+				}
+			}
+		}
+	}
+--></script>';
+	$Page .= '</manialink>';
 	
 	$Page .= '</manialinks>';
 	//var_dump($Page);

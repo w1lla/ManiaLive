@@ -45,19 +45,45 @@ class Twitter extends \ManiaLive\PluginHandler\Plugin {
 		require_once('libraries/ManiaLivePlugins/Twitter/Twitter/twitter.class.php');
 		$config = Config::getInstance();
 		$this->Twitter = new Twitterer($config->consumerKey, $config->consumerSecret, $config->accessToken, $config->accessTokenSecret);
-		var_dump($this->Twitter);
+		
     }
 	
-	public function onReady() {
 	
+	public function onReady() {
+		$this->registerChatCommand("tweet", "chatTwitter", 1, true);
+		$this->registerChatCommand("tweet", "chatTwitter", 2, true);
 		 $this->enableDedicatedEvents();
 
+		 
 		try {
-		$tweet = $this->Twitter->send('Manialive TweetCast :P');
-
+		$this->Twitter->authenticate();
 		} catch (TwitterException $e) {
-		echo 'Error: ' . $e->getMessage();
+		$this->connection->chatSendServerMessage('[Twitter] Error: ' . $e->getMessage());
 		}
 	 }
+	 
+	public function chatTwitter($login, $arg, $param = null) {
+        switch ($arg) {
+            case "send":
+                $this->send($login, $param);
+                break;
+            default:
+                $this->connection->chatSendServerMessage('Usage /tweet send tweet"', $login);
+                break;
+        }
+	}
+	
+	public function send($login, $tweets) {
+	 if (!is_string($tweets)) {
+            $this->connection->chatSendServerMessage('"' . $tweets . '" is not a numeric value.', $login);
+            return;
+        }
+        try {
+		$tweet = $this->Twitter->send($tweets);
+		$this->connection->chatSendServerMessage('[Twitter] Sent: ' . $tweets, $login);
+		} catch (TwitterException $e) {
+		$this->connection->chatSendServerMessage('[Twitter] Error: ' . $e->getMessage(), $login);
+		}
+	}
 }
 ?>
